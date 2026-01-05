@@ -80,7 +80,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => router.push('/modal')}
+            onPress={() => router.push('/(tabs)/therapy')}
           >
             <FontAwesome name="medkit" size={32} color="#16a34a" />
             <Text style={styles.actionText}>Терапия</Text>

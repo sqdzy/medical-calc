@@ -21,10 +21,14 @@ export const api = axios.create({
 
 // Request interceptor - attach access token
 api.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
+  async (config: InternalAxiosRequestConfig & { _retry?: boolean }) => {
+    // Skip if this is a retry (token already set) or Authorization already present
+    if (config._retry || config.headers?.Authorization) {
+      return config;
+    }
     const token = await SecureStore.getItemAsync('access_token');
     if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.set('Authorization', `Bearer ${token}`);
     }
     return config;
   },
@@ -51,16 +55,15 @@ api.interceptors.response.use(
           refresh_token: refreshToken,
         });
 
-        const { access_token, refresh_token } = data.data.tokens;
+        const { access_token, refresh_token: new_refresh_token } = data.data.tokens;
 
+        // Save new tokens BEFORE retrying
         await SecureStore.setItemAsync('access_token', access_token);
-        await SecureStore.setItemAsync('refresh_token', refresh_token);
+        await SecureStore.setItemAsync('refresh_token', new_refresh_token);
 
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
-        }
-
-        return api(originalRequest);
+        // Retry: set new token directly on originalRequest headers and use api instance
+        originalRequest.headers.set('Authorization', `Bearer ${access_token}`);
+        return api.request(originalRequest);
       } catch (refreshError) {
         // Refresh failed - clear tokens
         await SecureStore.deleteItemAsync('access_token');
@@ -136,7 +139,7 @@ export const therapyApi = {
   createLog: (data: {
     patient_id: string;
     drug_id: string;
-    dosage: number;
+    dosage: string;
     dosage_unit: string;
     route?: string;
     administered_at?: string;
@@ -145,4 +148,6 @@ export const therapyApi = {
   }) => api.post('/therapy/logs', data),
 
   listByPatient: (patientId: string) => api.get(`/patients/${patientId}/therapy`),
+
+  deleteLog: (logId: string) => api.delete(`/therapy/logs/${logId}`),
 };

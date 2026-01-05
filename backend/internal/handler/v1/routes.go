@@ -34,6 +34,7 @@ func SetupRoutes(app *fiber.App, deps RouterDeps) {
 	// Surveys
 	v1.Get("/surveys/templates", deps.AuthMiddleware.OptionalAuth(), surveyHandler.ListTemplates)
 	v1.Get("/surveys/templates/:code", deps.AuthMiddleware.OptionalAuth(), surveyHandler.GetTemplateByCode)
+	v1.Post("/surveys/:code/calculate", deps.AuthMiddleware.OptionalAuth(), surveyHandler.Calculate)
 	v1.Post("/surveys/responses", deps.AuthMiddleware.RequireAuth(), surveyHandler.SubmitResponse)
 
 	// Drugs
@@ -45,5 +46,6 @@ func SetupRoutes(app *fiber.App, deps RouterDeps) {
 
 	// Therapy
 	v1.Post("/therapy/logs", deps.AuthMiddleware.RequireAuth(), therapyHandler.CreateLog)
+	v1.Delete("/therapy/logs/:logId", deps.AuthMiddleware.RequireAuth(), therapyHandler.DeleteLog)
 	v1.Get("/patients/:patientId/therapy", deps.AuthMiddleware.RequireAuth(), therapyHandler.ListByPatient)
 }

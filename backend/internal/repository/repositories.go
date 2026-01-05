@@ -17,6 +17,7 @@ type Repositories struct {
 
 	Drug       DrugRepository
 	TherapyLog TherapyLogRepository
+	Patient    PatientRepository
 
 	Role       RoleRepository
 	Permission PermissionRepository
@@ -32,6 +33,7 @@ func NewRepositories(db *pgxpool.Pool) *Repositories {
 		SurveyResponse: postgres.NewSurveyResponseRepository(db),
 		Drug:           postgres.NewDrugRepository(db),
 		TherapyLog:     postgres.NewTherapyLogRepository(db),
+		Patient:        postgres.NewPatientRepository(db),
 		Role:           postgres.NewRoleRepository(db),
 		Permission:     postgres.NewPermissionRepository(db),
 	}

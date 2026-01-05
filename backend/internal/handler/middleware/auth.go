@@ -1,11 +1,9 @@
 package middleware
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	jwtware "github.com/gofiber/jwt/v3"
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
 
@@ -29,17 +27,19 @@ func (m *AuthMiddleware) RequireAuth() fiber.Handler {
 
 // OptionalAuth parses token if present but does not fail without it.
 func (m *AuthMiddleware) OptionalAuth() fiber.Handler {
-	mw := m.RequireAuth()
-	return func(c *fiber.Ctx) error {
-		h := c.Get("Authorization")
-		if strings.TrimSpace(h) == "" {
+	// IMPORTANT: we must not let the JWT middleware write 400/401 to the response
+	// when token is missing/invalid, otherwise "public" endpoints become unusable
+	// for clients that send stale tokens.
+	return jwtware.New(jwtware.Config{
+		SigningKey:  []byte(m.jwtSecret),
+		TokenLookup: "header:Authorization",
+		AuthScheme:  "Bearer",
+		ContextKey:  "jwt",
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			// Ignore auth errors and continue as anonymous.
 			return c.Next()
-		}
-		if err := mw(c); err != nil {
-			return c.Next()
-		}
-		return c.Next()
-	}
+		},
+	})
 }
 
 // GetUserID extracts user ID from JWT claims.

@@ -1,16 +1,44 @@
 package entity
 
 import (
+	"encoding/json"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// Dosage accepts either a JSON string or number and stores it as string.
+// This keeps the API tolerant to mobile clients sending numeric dosage values.
+type Dosage string
+
+func (d *Dosage) UnmarshalJSON(b []byte) error {
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch t := v.(type) {
+	case string:
+		*d = Dosage(t)
+		return nil
+	case float64:
+		*d = Dosage(strconv.FormatFloat(t, 'f', -1, 64))
+		return nil
+	case nil:
+		*d = ""
+		return nil
+	default:
+		return fmt.Errorf("invalid dosage type")
+	}
+}
 
 // TherapyLog represents a drug administration record
 type TherapyLog struct {
 	ID               uuid.UUID  `json:"id" db:"id"`
 	PatientID        uuid.UUID  `json:"patient_id" db:"patient_id"`
 	DrugID           uuid.UUID  `json:"drug_id" db:"drug_id"`
+	DrugName         string     `json:"drug_name,omitempty" db:"drug_name"`
 	Dosage           string     `json:"dosage" db:"dosage"`
 	DosageUnit       string     `json:"dosage_unit,omitempty" db:"dosage_unit"`
 	Route            string     `json:"route,omitempty" db:"route"`
@@ -52,7 +80,7 @@ const (
 type TherapyLogCreate struct {
 	PatientID        uuid.UUID  `json:"patient_id" validate:"required"`
 	DrugID           uuid.UUID  `json:"drug_id" validate:"required"`
-	Dosage           string     `json:"dosage" validate:"required"`
+	Dosage           Dosage     `json:"dosage" validate:"required"`
 	DosageUnit       string     `json:"dosage_unit,omitempty"`
 	Route            string     `json:"route,omitempty"`
 	AdministeredAt   *time.Time `json:"administered_at,omitempty"`

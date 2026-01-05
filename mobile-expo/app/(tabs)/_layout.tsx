@@ -40,6 +40,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="list-alt" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="therapy"
+        options={{
+          title: 'Терапия',
+          tabBarIcon: ({ color }) => <TabBarIcon name="medkit" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

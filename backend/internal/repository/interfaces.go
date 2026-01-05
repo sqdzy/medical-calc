@@ -60,4 +60,11 @@ type DrugRepository interface {
 type TherapyLogRepository interface {
 	Create(ctx context.Context, log *entity.TherapyLog) error
 	ListByPatient(ctx context.Context, patientID uuid.UUID, limit int) ([]*entity.TherapyLog, error)
+	DeleteByID(ctx context.Context, patientID uuid.UUID, logID uuid.UUID) (bool, error)
+}
+
+type PatientRepository interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*entity.Patient, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) (*entity.Patient, error)
+	Create(ctx context.Context, patient *entity.Patient) error
 }

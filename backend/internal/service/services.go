@@ -67,7 +67,7 @@ func NewServices(d Deps) *Services {
 		Repo:       d.Repos.Drug,
 		NCBIClient: ncbiClient,
 	})
-	therapySvc := NewTherapyService(TherapyDeps{Repo: d.Repos.TherapyLog})
+	therapySvc := NewTherapyService(TherapyDeps{Repo: d.Repos.TherapyLog, PatientRepo: d.Repos.Patient})
 
 	_ = encryptor // will be used when PatientService is implemented
 

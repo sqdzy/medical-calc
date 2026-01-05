@@ -52,12 +52,15 @@ func (r *therapyLogRepository) ListByPatient(ctx context.Context, patientID uuid
 	}
 
 	q := r.sb.Select(
-		"id", "patient_id", "drug_id", "dosage", "dosage_unit", "route",
-		"administered_at", "next_scheduled", "cycle_number", "batch_number", "site",
-		"administered_by", "status", "adverse_reactions", "notes", "created_at", "updated_at",
-	).From("therapy_logs").
-		Where(squirrel.Eq{"patient_id": patientID}).
-		OrderBy("COALESCE(next_scheduled, administered_at) DESC").
+		"tl.id", "tl.patient_id", "tl.drug_id", "d.name AS drug_name",
+		"tl.dosage", "tl.dosage_unit", "tl.route",
+		"tl.administered_at", "tl.next_scheduled", "tl.cycle_number", "tl.batch_number", "tl.site",
+		"tl.administered_by", "tl.status", "tl.adverse_reactions", "tl.notes", "tl.created_at", "tl.updated_at",
+	).From("therapy_logs tl").
+		LeftJoin("drugs d ON d.id = tl.drug_id").
+		Where(squirrel.Eq{"tl.patient_id": patientID}).
+		OrderBy("ABS(EXTRACT(EPOCH FROM (COALESCE(tl.next_scheduled, tl.administered_at, tl.created_at) - NOW()))) ASC").
+		OrderBy("COALESCE(tl.next_scheduled, tl.administered_at, tl.created_at) DESC").
 		Limit(uint64(limit))
 
 	sql, args, err := q.ToSql()
@@ -75,7 +78,7 @@ func (r *therapyLogRepository) ListByPatient(ctx context.Context, patientID uuid
 	for rows.Next() {
 		var t entity.TherapyLog
 		if err := rows.Scan(
-			&t.ID, &t.PatientID, &t.DrugID, &t.Dosage, &t.DosageUnit, &t.Route,
+			&t.ID, &t.PatientID, &t.DrugID, &t.DrugName, &t.Dosage, &t.DosageUnit, &t.Route,
 			&t.AdministeredAt, &t.NextScheduled, &t.CycleNumber, &t.BatchNumber, &t.Site,
 			&t.AdministeredByID, &t.Status, &t.AdverseReactions, &t.Notes, &t.CreatedAt, &t.UpdatedAt,
 		); err != nil {
@@ -84,4 +87,21 @@ func (r *therapyLogRepository) ListByPatient(ctx context.Context, patientID uuid
 		out = append(out, &t)
 	}
 	return out, nil
+}
+
+func (r *therapyLogRepository) DeleteByID(ctx context.Context, patientID uuid.UUID, logID uuid.UUID) (bool, error) {
+	q := r.sb.Delete("therapy_logs").
+		Where(squirrel.Eq{"id": logID, "patient_id": patientID})
+
+	sql, args, err := q.ToSql()
+	if err != nil {
+		return false, fmt.Errorf("build sql: %w", err)
+	}
+
+	ct, err := r.db.Exec(ctx, sql, args...)
+	if err != nil {
+		return false, fmt.Errorf("delete therapy log: %w", err)
+	}
+
+	return ct.RowsAffected() > 0, nil
 }

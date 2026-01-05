@@ -19,7 +19,12 @@ import { useAuthStore } from '../../src/store/auth';
 
 const registerSchema = z.object({
   email: z.string().email('Некорректный email'),
-  password: z.string().min(6, 'Минимум 6 символов'),
+  password: z
+    .string()
+    .min(8, 'Минимум 8 символов')
+    .regex(/[A-Z]/, 'Добавьте хотя бы 1 заглавную букву')
+    .regex(/[a-z]/, 'Добавьте хотя бы 1 строчную букву')
+    .regex(/[0-9]/, 'Добавьте хотя бы 1 цифру'),
   first_name: z.string().min(2, 'Минимум 2 символа'),
   last_name: z.string().min(2, 'Минимум 2 символа'),
 });
@@ -87,6 +92,7 @@ export default function RegisterScreen() {
                   <TextInput
                     style={[styles.input, errors.first_name && styles.inputError]}
                     placeholder="Иван"
+                    placeholderTextColor="#9ca3af"
                     onBlur={onBlur}
                     onChangeText={onChange}
                     value={value}
@@ -106,6 +112,7 @@ export default function RegisterScreen() {
                   <TextInput
                     style={[styles.input, errors.last_name && styles.inputError]}
                     placeholder="Иванов"
+                    placeholderTextColor="#9ca3af"
                     onBlur={onBlur}
                     onChangeText={onChange}
                     value={value}
@@ -126,6 +133,7 @@ export default function RegisterScreen() {
               <TextInput
                 style={[styles.input, errors.email && styles.inputError]}
                 placeholder="email@example.com"
+                placeholderTextColor="#9ca3af"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 onBlur={onBlur}
@@ -144,6 +152,7 @@ export default function RegisterScreen() {
               <TextInput
                 style={[styles.input, errors.password && styles.inputError]}
                 placeholder="••••••••"
+                placeholderTextColor="#9ca3af"
                 secureTextEntry
                 onBlur={onBlur}
                 onChangeText={onChange}
@@ -151,6 +160,9 @@ export default function RegisterScreen() {
               />
             )}
           />
+          <Text style={styles.passwordHint}>
+            Пароль должен быть минимум 8 символов и содержать заглавную букву, строчную букву и цифру.
+          </Text>
           {errors.password && <Text style={styles.fieldError}>{errors.password.message}</Text>}
 
           <TouchableOpacity
@@ -253,6 +265,12 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     fontSize: 12,
     marginTop: 4,
+  },
+  passwordHint: {
+    color: '#6b7280',
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 16,
   },
   submitButton: {
     backgroundColor: '#2563eb',

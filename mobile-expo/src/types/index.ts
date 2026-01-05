@@ -29,15 +29,20 @@ export interface QuestionOption {
 export interface SurveyQuestion {
   id: string;
   text: string;
-  type: 'boolean' | 'vas' | 'vas100' | 'select';
+  type: 'boolean' | 'number' | 'scale' | 'select' | 'text' | 'vas' | 'vas100';
   score?: number;
-  min_value?: number;
-  max_value?: number;
-  options?: QuestionOption[];
+  min?: number;
+  max?: number;
+  // Backend currently stores options as string[]; keep it flexible.
+  options?: string[] | QuestionOption[];
+  labels?: Record<string, string>;
+  required?: boolean;
+  extra?: Record<string, unknown>;
 }
 
 export interface SurveySection {
   section: string;
+  title?: string;
   questions: SurveyQuestion[];
 }
 
@@ -47,7 +52,7 @@ export interface SurveyTemplate {
   name: string;
   description: string;
   category: string;
-  questions: SurveyQuestion[];
+  questions: SurveySection[];
 }
 
 export interface SurveyAnswer {
@@ -88,10 +93,10 @@ export interface TherapyLog {
   patient_id: string;
   drug_id: string;
   drug_name?: string;
-  dosage: number;
+  dosage: string;
   dosage_unit: string;
   route?: string;
-  administered_at: string;
+  administered_at?: string;
   next_scheduled?: string;
   notes?: string;
   created_at: string;

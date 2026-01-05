@@ -60,19 +60,38 @@ export const useAuthStore = create<AuthState>((set) => ({
   loadStoredAuth: async () => {
     try {
       const accessToken = await SecureStore.getItemAsync('access_token');
-      if (!accessToken) {
-        set({ isLoading: false, isAuthenticated: false });
-        return;
+      const refreshToken = await SecureStore.getItemAsync('refresh_token');
+
+      // If access token is missing but refresh token exists, refresh session silently
+      if (!accessToken && refreshToken) {
+        const refreshed = await authApi.refresh(refreshToken);
+        const { tokens } = refreshed.data.data;
+        await SecureStore.setItemAsync('access_token', tokens.access_token);
+        await SecureStore.setItemAsync('refresh_token', tokens.refresh_token);
       }
 
-      // Validate token by fetching user
       const { data } = await authApi.me();
       set({ user: data.data as User, isAuthenticated: true, isLoading: false });
     } catch {
-      // Token invalid or expired
-      await SecureStore.deleteItemAsync('access_token');
-      await SecureStore.deleteItemAsync('refresh_token');
-      set({ user: null, isAuthenticated: false, isLoading: false });
+      try {
+        // If access token invalid/expired but refresh token exists, retry once via refresh
+        const refreshToken = await SecureStore.getItemAsync('refresh_token');
+        if (!refreshToken) {
+          throw new Error('No refresh token');
+        }
+
+        const refreshed = await authApi.refresh(refreshToken);
+        const { tokens } = refreshed.data.data;
+        await SecureStore.setItemAsync('access_token', tokens.access_token);
+        await SecureStore.setItemAsync('refresh_token', tokens.refresh_token);
+
+        const { data } = await authApi.me();
+        set({ user: data.data as User, isAuthenticated: true, isLoading: false });
+      } catch {
+        await SecureStore.deleteItemAsync('access_token');
+        await SecureStore.deleteItemAsync('refresh_token');
+        set({ user: null, isAuthenticated: false, isLoading: false });
+      }
     }
   },
 }));

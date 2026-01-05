@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Switch,
+  TextInput,
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -14,7 +15,25 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import Slider from '@react-native-community/slider';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { surveysApi } from '../../src/api/client';
-import type { SurveyTemplate, SurveyQuestion, SurveyAnswer } from '../../src/types';
+import type { SurveyTemplate, SurveyQuestion, SurveyAnswer, SurveySection } from '../../src/types';
+
+function flattenQuestions(sections: SurveySection[]): SurveyQuestion[] {
+  const out: SurveyQuestion[] = [];
+  for (const s of sections || []) {
+    for (const q of s.questions || []) {
+      out.push(q);
+    }
+  }
+  return out;
+}
+
+function getMin(q: SurveyQuestion) {
+  return typeof q.min === 'number' ? q.min : 0;
+}
+
+function getMax(q: SurveyQuestion) {
+  return typeof q.max === 'number' ? q.max : 10;
+}
 
 export default function SurveyFormScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
@@ -34,11 +53,12 @@ export default function SurveyFormScreen() {
       navigation.setOptions({ title: template.name });
       // Initialize answers with default values
       const initialAnswers: Record<string, number | boolean> = {};
-      template.questions.forEach((q) => {
+      const questions = flattenQuestions(template.questions);
+      questions.forEach((q) => {
         if (q.type === 'boolean') {
           initialAnswers[q.id] = false;
-        } else if (q.type === 'vas') {
-          initialAnswers[q.id] = q.min_value || 0;
+        } else {
+          initialAnswers[q.id] = getMin(q);
         }
       });
       setAnswers(initialAnswers);
@@ -68,7 +88,8 @@ export default function SurveyFormScreen() {
   const handleSubmit = () => {
     if (!template) return;
 
-    const surveyAnswers: SurveyAnswer[] = template.questions.map((q) => ({
+    const questions = flattenQuestions(template.questions);
+    const surveyAnswers: SurveyAnswer[] = questions.map((q) => ({
       question_id: q.id,
       value: answers[q.id] ?? (q.type === 'boolean' ? false : 0),
     }));
@@ -109,49 +130,83 @@ export default function SurveyFormScreen() {
       </View>
 
       <View style={styles.questions}>
-        {template.questions.map((question, index) => (
-          <View key={question.id} style={styles.questionCard}>
-            <Text style={styles.questionNumber}>Вопрос {index + 1}</Text>
-            <Text style={styles.questionText}>{question.text}</Text>
+        {template.questions.map((section, sectionIndex) => (
+          <View key={`${section.section}-${sectionIndex}`} style={styles.sectionBlock}>
+            {!!section.title && <Text style={styles.sectionTitle}>{section.title}</Text>}
+            {section.questions.map((question, index) => {
+              const globalIndex =
+                template.questions
+                  .slice(0, sectionIndex)
+                  .reduce((acc, s) => acc + (s.questions?.length || 0), 0) +
+                index;
 
-            {question.type === 'boolean' && (
-              <View style={styles.booleanAnswer}>
-                <Text style={styles.booleanLabel}>
-                  {answers[question.id] ? 'Да' : 'Нет'}
-                </Text>
-                <Switch
-                  value={Boolean(answers[question.id])}
-                  onValueChange={(val) => setAnswer(question.id, val)}
-                  trackColor={{ false: '#e5e7eb', true: '#93c5fd' }}
-                  thumbColor={answers[question.id] ? '#2563eb' : '#9ca3af'}
-                />
-              </View>
-            )}
+              return (
+                <View key={`${section.section}-${question.id}`} style={styles.questionCard}>
+                  <Text style={styles.questionNumber}>Вопрос {globalIndex + 1}</Text>
+                  <Text style={styles.questionText}>{question.text}</Text>
 
-            {question.type === 'vas' && (
-              <View style={styles.vasAnswer}>
-                <View style={styles.vasLabels}>
-                  <Text style={styles.vasMinLabel}>{question.min_value || 0}</Text>
-                  <Text style={styles.vasValue}>
-                    {typeof answers[question.id] === 'number'
-                      ? (answers[question.id] as number).toFixed(1)
-                      : '0.0'}
-                  </Text>
-                  <Text style={styles.vasMaxLabel}>{question.max_value || 10}</Text>
+                  {question.type === 'boolean' && (
+                    <View style={styles.booleanAnswer}>
+                      <Text style={styles.booleanLabel}>
+                        {answers[question.id] ? 'Да' : 'Нет'}
+                      </Text>
+                      <Switch
+                        value={Boolean(answers[question.id])}
+                        onValueChange={(val) => setAnswer(question.id, val)}
+                        trackColor={{ false: '#e5e7eb', true: '#93c5fd' }}
+                        thumbColor={answers[question.id] ? '#2563eb' : '#9ca3af'}
+                      />
+                    </View>
+                  )}
+
+                  {(question.type === 'scale' || question.type === 'vas' || question.type === 'vas100') && (
+                    <View style={styles.vasAnswer}>
+                      <View style={styles.vasLabels}>
+                        <Text style={styles.vasMinLabel}>{getMin(question)}</Text>
+                        <Text style={styles.vasValue}>
+                          {typeof answers[question.id] === 'number'
+                            ? (answers[question.id] as number).toFixed(1)
+                            : '0.0'}
+                        </Text>
+                        <Text style={styles.vasMaxLabel}>{getMax(question)}</Text>
+                      </View>
+                      <Slider
+                        style={styles.slider}
+                        minimumValue={getMin(question)}
+                        maximumValue={getMax(question)}
+                        step={question.type === 'scale' ? 1 : 0.5}
+                        value={typeof answers[question.id] === 'number' ? (answers[question.id] as number) : getMin(question)}
+                        onValueChange={(val) => setAnswer(question.id, val)}
+                        minimumTrackTintColor="#2563eb"
+                        maximumTrackTintColor="#e5e7eb"
+                        thumbTintColor="#2563eb"
+                      />
+                    </View>
+                  )}
+
+                  {question.type === 'number' && (
+                    <View style={styles.numberAnswer}>
+                      <TextInput
+                        style={styles.numberInput}
+                        placeholder="0"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="numeric"
+                        value={
+                          typeof answers[question.id] === 'number'
+                            ? String(answers[question.id])
+                            : ''
+                        }
+                        onChangeText={(txt) => {
+                          const normalized = txt.replace(',', '.').trim();
+                          const n = normalized === '' ? getMin(question) : Number(normalized);
+                          setAnswer(question.id, Number.isFinite(n) ? n : getMin(question));
+                        }}
+                      />
+                    </View>
+                  )}
                 </View>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={question.min_value || 0}
-                  maximumValue={question.max_value || 10}
-                  step={0.5}
-                  value={typeof answers[question.id] === 'number' ? answers[question.id] as number : 0}
-                  onValueChange={(val) => setAnswer(question.id, val)}
-                  minimumTrackTintColor="#2563eb"
-                  maximumTrackTintColor="#e5e7eb"
-                  thumbTintColor="#2563eb"
-                />
-              </View>
-            )}
+              );
+            })}
           </View>
         ))}
       </View>
@@ -242,6 +297,17 @@ const styles = StyleSheet.create({
   questions: {
     gap: 12,
   },
+  sectionBlock: {
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 4,
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
   questionCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -257,6 +323,19 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '600',
     marginBottom: 4,
+  },
+  numberAnswer: {
+    marginTop: 4,
+  },
+  numberInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: '#111827',
+    backgroundColor: '#fff',
   },
   questionText: {
     fontSize: 16,

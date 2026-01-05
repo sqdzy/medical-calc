@@ -83,6 +83,7 @@ export default function LoginScreen() {
               <TextInput
                 style={[styles.input, errors.email && styles.inputError]}
                 placeholder="email@example.com"
+                placeholderTextColor="#9ca3af"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 onBlur={onBlur}
@@ -101,6 +102,7 @@ export default function LoginScreen() {
               <TextInput
                 style={[styles.input, errors.password && styles.inputError]}
                 placeholder="••••••••"
+                placeholderTextColor="#9ca3af"
                 secureTextEntry
                 onBlur={onBlur}
                 onChangeText={onChange}

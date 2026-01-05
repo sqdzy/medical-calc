@@ -29,8 +29,12 @@ func (r *drugRepository) List(ctx context.Context, search string, limit int) ([]
 	}
 
 	q := r.sb.Select(
-		"id", "name", "international_name", "trade_name", "ncbi_pubchem_id", "atc_code",
-		"dosage_form", "manufacturer", "description", "contraindications", "is_active", "created_at", "updated_at",
+		"id", "name",
+		"COALESCE(international_name, '')", "COALESCE(trade_name, '')",
+		"COALESCE(ncbi_pubchem_id, '')", "COALESCE(atc_code, '')",
+		"COALESCE(dosage_form, '')", "COALESCE(manufacturer, '')",
+		"COALESCE(description, '')", "COALESCE(contraindications, '')",
+		"is_active", "created_at", "updated_at",
 	).From("drugs")
 
 	if strings.TrimSpace(search) != "" {
@@ -72,8 +76,12 @@ func (r *drugRepository) List(ctx context.Context, search string, limit int) ([]
 
 func (r *drugRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Drug, error) {
 	q := r.sb.Select(
-		"id", "name", "international_name", "trade_name", "ncbi_pubchem_id", "atc_code",
-		"dosage_form", "manufacturer", "description", "contraindications", "is_active", "created_at", "updated_at",
+		"id", "name",
+		"COALESCE(international_name, '')", "COALESCE(trade_name, '')",
+		"COALESCE(ncbi_pubchem_id, '')", "COALESCE(atc_code, '')",
+		"COALESCE(dosage_form, '')", "COALESCE(manufacturer, '')",
+		"COALESCE(description, '')", "COALESCE(contraindications, '')",
+		"is_active", "created_at", "updated_at",
 	).From("drugs").Where(squirrel.Eq{"id": id})
 
 	sql, args, err := q.ToSql()
