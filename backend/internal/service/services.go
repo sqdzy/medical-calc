@@ -1,6 +1,7 @@
 package service
 
 import (
+	"log"
 	"time"
 
 	"github.com/medical-app/backend/internal/external"
@@ -9,10 +10,11 @@ import (
 )
 
 type Services struct {
-	Auth    *AuthService
-	Survey  *SurveyService
-	Drug    *DrugService
-	Therapy *TherapyService
+	Auth     *AuthService
+	Survey   *SurveyService
+	Drug     *DrugService
+	Therapy  *TherapyService
+	AIAdvice *AIAdviceService
 }
 
 type Deps struct {
@@ -40,12 +42,16 @@ func NewServices(d Deps) *Services {
 	if d.YandexFolderID != "" && (d.YandexGPTApiKey != "" || d.YandexIAMToken != "") {
 		if d.YandexGPTApiKey != "" {
 			gptClient = external.NewYandexGPTClient(d.YandexGPTApiKey, d.YandexFolderID)
+			log.Printf("[Services] YandexGPT client initialized with API key, folder: %s, model: %s", d.YandexFolderID, d.YandexGPTModel)
 		} else {
 			gptClient = external.NewYandexGPTClientWithIAMToken(d.YandexIAMToken, d.YandexFolderID)
+			log.Printf("[Services] YandexGPT client initialized with IAM token, folder: %s", d.YandexFolderID)
 		}
 		if d.YandexGPTModel != "" {
 			gptClient.SetModel(d.YandexGPTModel)
 		}
+	} else {
+		log.Printf("[Services] YandexGPT client NOT initialized (missing YANDEX_FOLDER_ID=%q or API key=%v/IAM=%v)", d.YandexFolderID, d.YandexGPTApiKey != "", d.YandexIAMToken != "")
 	}
 
 	authSvc := NewAuthService(AuthDeps{
@@ -68,13 +74,15 @@ func NewServices(d Deps) *Services {
 		NCBIClient: ncbiClient,
 	})
 	therapySvc := NewTherapyService(TherapyDeps{Repo: d.Repos.TherapyLog, PatientRepo: d.Repos.Patient})
+	aiAdviceSvc := NewAIAdviceService(AIAdviceDeps{TemplateRepo: d.Repos.SurveyTemplate, PatientRepo: d.Repos.Patient, AdviceRepo: d.Repos.AIAdvice, GPTClient: gptClient})
 
 	_ = encryptor // will be used when PatientService is implemented
 
 	return &Services{
-		Auth:    authSvc,
-		Survey:  surveySvc,
-		Drug:    drugSvc,
-		Therapy: therapySvc,
+		Auth:     authSvc,
+		Survey:   surveySvc,
+		Drug:     drugSvc,
+		Therapy:  therapySvc,
+		AIAdvice: aiAdviceSvc,
 	}
 }

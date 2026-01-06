@@ -63,6 +63,19 @@ export interface SurveyAnswer {
 export interface SurveyResult {
   score: number;
   interpretation: string;
+  category?: string;
+  breakdown?: Record<string, unknown>;
+}
+
+export interface AIAdviceResult {
+  id: string;
+  survey_code: string;
+  user_text?: string;
+  advice_text: string;
+  disclaimer: string;
+  score?: number;
+  category?: string;
+  created_at: string;
 }
 
 export interface SurveyResponse {

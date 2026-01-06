@@ -30,7 +30,7 @@ func NewYandexGPTClient(apiKey, folderID string) *YandexGPTClient {
 		folderID:   folderID,
 		limiter:    rate.NewLimiter(rate.Limit(1), 1), // 1 req/s (conservative)
 		baseURL:    "https://llm.api.cloud.yandex.net/foundationModels/v1",
-		model:      "yandexgpt-lite", // or "yandexgpt" for full model
+		model:      "yandexgpt-lite",
 	}
 }
 
@@ -42,7 +42,7 @@ func NewYandexGPTClientWithIAMToken(iamToken, folderID string) *YandexGPTClient 
 		folderID:   folderID,
 		limiter:    rate.NewLimiter(rate.Limit(1), 1), // 1 req/s (conservative)
 		baseURL:    "https://llm.api.cloud.yandex.net/foundationModels/v1",
-		model:      "yandexgpt-lite", // or "yandexgpt" for full model
+		model:      "yandexgpt-lite",
 	}
 }
 
@@ -81,11 +81,7 @@ type CompletionResponse struct {
 			} `json:"message"`
 			Status string `json:"status"`
 		} `json:"alternatives"`
-		Usage struct {
-			InputTextTokens  int `json:"inputTextTokens"`
-			OutputTextTokens int `json:"outputTextTokens"`
-			TotalTokens      int `json:"totalTextTokens"`
-		} `json:"usage"`
+		Usage map[string]any `json:"usage"`
 	} `json:"result"`
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import Slider from '@react-native-community/slider';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { surveysApi } from '../../src/api/client';
-import type { SurveyTemplate, SurveyQuestion, SurveyAnswer, SurveySection } from '../../src/types';
+import type { SurveyTemplate, SurveyQuestion, SurveyAnswer, SurveySection, SurveyResult, AIAdviceResult } from '../../src/types';
 
 function flattenQuestions(sections: SurveySection[]): SurveyQuestion[] {
   const out: SurveyQuestion[] = [];
@@ -39,8 +39,12 @@ export default function SurveyFormScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const navigation = useNavigation();
   const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
 
   const [answers, setAnswers] = useState<Record<string, number | boolean>>({});
+  const [result, setResult] = useState<SurveyResult | null>(null);
+  const [aiRequestText, setAiRequestText] = useState('');
+  const [aiAdvice, setAiAdvice] = useState<AIAdviceResult | null>(null);
 
   const { data: template, isLoading, error } = useQuery<SurveyTemplate>({
     queryKey: ['survey-template', code],
@@ -69,19 +73,24 @@ export default function SurveyFormScreen() {
     mutationFn: (surveyAnswers: SurveyAnswer[]) => 
       surveysApi.submitResponse(code || '', surveyAnswers),
     onSuccess: (result) => {
-      Alert.alert(
-        'Результат',
-        `${template?.name}: ${result.score.toFixed(2)}\n\n${result.interpretation}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      setResult(result);
+      setAiAdvice(null);
+      // Scroll to top to show result
+      setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
     },
     onError: (err: any) => {
       Alert.alert('Ошибка', err.response?.data?.message || 'Не удалось сохранить');
+    },
+  });
+
+  const adviceMutation = useMutation({
+    mutationFn: (payload: { surveyAnswers: SurveyAnswer[]; text: string }) =>
+      surveysApi.createAdvice(code || '', payload.surveyAnswers, payload.text),
+    onSuccess: (data) => {
+      setAiAdvice(data);
+    },
+    onError: (err: any) => {
+      Alert.alert('Ошибка', err.response?.data?.message || 'Не удалось получить рекомендацию');
     },
   });
 
@@ -95,6 +104,18 @@ export default function SurveyFormScreen() {
     }));
 
     submitMutation.mutate(surveyAnswers);
+  };
+
+  const handleGetAdvice = () => {
+    if (!template) return;
+
+    const questions = flattenQuestions(template.questions);
+    const surveyAnswers: SurveyAnswer[] = questions.map((q) => ({
+      question_id: q.id,
+      value: answers[q.id] ?? (q.type === 'boolean' ? false : 0),
+    }));
+
+    adviceMutation.mutate({ surveyAnswers, text: aiRequestText });
   };
 
   const setAnswer = (questionId: string, value: number | boolean) => {
@@ -123,11 +144,62 @@ export default function SurveyFormScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.title}>{template.name}</Text>
         <Text style={styles.description}>{template.description}</Text>
       </View>
+
+      {result && (
+        <View style={styles.resultCard}>
+          <Text style={styles.resultTitle}>Результат</Text>
+          <Text style={styles.resultValue}>{result.score.toFixed(2)}</Text>
+          <Text style={styles.resultInterpretation}>{result.interpretation}</Text>
+
+          <Text style={styles.aiTitle}>AI рекомендации</Text>
+          <Text style={styles.aiHint}>
+            Можно добавить комментарий (необязательно) и получить пояснение результатов.
+          </Text>
+          <TextInput
+            style={styles.aiInput}
+            placeholder="Опишите самочувствие/жалобы (необязательно)"
+            placeholderTextColor="#9ca3af"
+            value={aiRequestText}
+            onChangeText={setAiRequestText}
+            multiline
+          />
+
+          <TouchableOpacity
+            style={[styles.aiButton, adviceMutation.isPending && styles.submitButtonDisabled]}
+            onPress={handleGetAdvice}
+            disabled={adviceMutation.isPending}
+          >
+            {adviceMutation.isPending ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <FontAwesome name="comment" size={18} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.submitButtonText}>Получить рекомендацию</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {aiAdvice && (
+            <View style={styles.aiAnswerBlock}>
+              <Text style={styles.aiAnswerText}>{aiAdvice.advice_text}</Text>
+              <Text style={styles.aiDisclaimer}>{aiAdvice.disclaimer}</Text>
+
+              <TouchableOpacity style={styles.aiHistoryBtn} onPress={() => router.push('/(tabs)/advice' as any)}>
+                <Text style={styles.aiHistoryBtnText}>Открыть историю рекомендаций</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Text style={styles.backBtnText}>Готово</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.questions}>
         {template.questions.map((section, sectionIndex) => (
@@ -282,6 +354,84 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  resultCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  resultTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  resultValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  resultInterpretation: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#374151',
+  },
+  aiTitle: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  aiHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  aiInput: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 10,
+    padding: 12,
+    minHeight: 80,
+    color: '#111827',
+    backgroundColor: '#fff',
+    textAlignVertical: 'top',
+  },
+  aiButton: {
+    marginTop: 12,
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiAnswerBlock: {
+    marginTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 14,
+  },
+  aiAnswerText: {
+    fontSize: 14,
+    color: '#111827',
+    lineHeight: 20,
+  },
+  aiDisclaimer: {
+    marginTop: 10,
+    fontSize: 12,
+    color: '#6b7280',
+    lineHeight: 16,
+  },
+  aiHistoryBtn: {
+    marginTop: 12,
+    paddingVertical: 10,
+  },
+  aiHistoryBtnText: {
+    color: '#2563eb',
+    fontWeight: '600',
   },
   title: {
     fontSize: 22,

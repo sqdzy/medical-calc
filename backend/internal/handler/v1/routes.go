@@ -20,7 +20,7 @@ func SetupRoutes(app *fiber.App, deps RouterDeps) {
 	v1 := api.Group("/v1")
 
 	authHandler := handlers.NewAuthHandler(deps.Services.Auth, deps.AuditMiddleware)
-	surveyHandler := handlers.NewSurveyHandler(deps.Services.Survey, deps.AuthMiddleware, deps.AuditMiddleware)
+	surveyHandler := handlers.NewSurveyHandler(deps.Services.Survey, deps.Services.AIAdvice, deps.AuthMiddleware, deps.AuditMiddleware)
 	drugHandler := handlers.NewDrugHandler(deps.Services.Drug, deps.AuthMiddleware)
 	therapyHandler := handlers.NewTherapyHandler(deps.Services.Therapy, deps.AuthMiddleware)
 
@@ -36,6 +36,8 @@ func SetupRoutes(app *fiber.App, deps RouterDeps) {
 	v1.Get("/surveys/templates/:code", deps.AuthMiddleware.OptionalAuth(), surveyHandler.GetTemplateByCode)
 	v1.Post("/surveys/:code/calculate", deps.AuthMiddleware.OptionalAuth(), surveyHandler.Calculate)
 	v1.Post("/surveys/responses", deps.AuthMiddleware.RequireAuth(), surveyHandler.SubmitResponse)
+	v1.Post("/surveys/:code/advice", deps.AuthMiddleware.RequireAuth(), surveyHandler.CreateAdvice)
+	v1.Get("/ai/advice", deps.AuthMiddleware.RequireAuth(), surveyHandler.ListAdvice)
 
 	// Drugs
 	v1.Get("/drugs", deps.AuthMiddleware.OptionalAuth(), drugHandler.List)

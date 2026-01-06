@@ -97,7 +97,7 @@ export const authApi = {
   me: () => api.get('/auth/me'),
 };
 
-import type { SurveyTemplate, SurveyAnswer, SurveyResult } from '../types';
+import type { SurveyTemplate, SurveyAnswer, SurveyResult, AIAdviceResult } from '../types';
 
 // Surveys API
 export const surveysApi = {
@@ -116,9 +116,22 @@ export const surveysApi = {
     return res.data.data || res.data;
   },
 
+  createAdvice: async (code: string, answers: SurveyAnswer[], text: string): Promise<AIAdviceResult> => {
+    const res = await api.post(`/surveys/${code}/advice`, { answers, text });
+    return res.data.data || res.data;
+  },
+
   getResponse: (id: string) => api.get(`/surveys/responses/${id}`),
 
   getPatientHistory: (patientId: string) => api.get(`/patients/${patientId}/surveys`),
+};
+
+// AI Advice API
+export const aiApi = {
+  listAdvice: async (limit = 50, offset = 0): Promise<AIAdviceResult[]> => {
+    const res = await api.get('/ai/advice', { params: { limit, offset } });
+    return res.data.data || res.data;
+  },
 };
 
 // Drugs API

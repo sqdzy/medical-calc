@@ -68,3 +68,8 @@ type PatientRepository interface {
 	GetByUserID(ctx context.Context, userID uuid.UUID) (*entity.Patient, error)
 	Create(ctx context.Context, patient *entity.Patient) error
 }
+
+type AIAdviceRepository interface {
+	Create(ctx context.Context, item *entity.AIAdvice) error
+	ListByPatient(ctx context.Context, patientID uuid.UUID, limit int, offset int) ([]*entity.AIAdvice, error)
+}

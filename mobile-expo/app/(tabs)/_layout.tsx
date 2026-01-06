@@ -47,6 +47,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="medkit" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="advice"
+        options={{
+          title: 'AI',
+          tabBarIcon: ({ color }) => <TabBarIcon name="comment" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

@@ -13,12 +13,13 @@ import (
 
 type SurveyHandler struct {
 	svc   *service.SurveyService
+	ai    *service.AIAdviceService
 	auth  *middleware.AuthMiddleware
 	audit *middleware.AuditMiddleware
 }
 
-func NewSurveyHandler(svc *service.SurveyService, auth *middleware.AuthMiddleware, audit *middleware.AuditMiddleware) *SurveyHandler {
-	return &SurveyHandler{svc: svc, auth: auth, audit: audit}
+func NewSurveyHandler(svc *service.SurveyService, ai *service.AIAdviceService, auth *middleware.AuthMiddleware, audit *middleware.AuditMiddleware) *SurveyHandler {
+	return &SurveyHandler{svc: svc, ai: ai, auth: auth, audit: audit}
 }
 
 func (h *SurveyHandler) ListTemplates(c *fiber.Ctx) error {
@@ -106,4 +107,64 @@ func (h *SurveyHandler) Calculate(c *fiber.Ctx) error {
 		"category":       category,
 		"breakdown":      breakdown,
 	})
+}
+
+type surveyAdviceRequest struct {
+	Answers []struct {
+		QuestionID string      `json:"question_id"`
+		Value      interface{} `json:"value"`
+	} `json:"answers"`
+	Text string `json:"text"`
+}
+
+func (h *SurveyHandler) CreateAdvice(c *fiber.Ctx) error {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		return response.Unauthorized(c, "Unauthorized")
+	}
+	code := strings.TrimSpace(c.Params("code"))
+	if code == "" {
+		return response.BadRequest(c, "Invalid code")
+	}
+	if h.ai == nil {
+		return response.BadRequest(c, "AI service not configured")
+	}
+
+	var req surveyAdviceRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "Invalid request body")
+	}
+
+	respMap := make(map[string]any, len(req.Answers))
+	for _, a := range req.Answers {
+		qid := strings.TrimSpace(a.QuestionID)
+		if qid == "" {
+			continue
+		}
+		respMap[qid] = a.Value
+	}
+
+	created, err := h.ai.CreateForUser(c.Context(), userID, code, respMap, req.Text)
+	if err != nil {
+		return err
+	}
+	return response.Created(c, created)
+}
+
+func (h *SurveyHandler) ListAdvice(c *fiber.Ctx) error {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		return response.Unauthorized(c, "Unauthorized")
+	}
+	if h.ai == nil {
+		return response.Success(c, []*service.AIAdviceResult{})
+	}
+	limit := c.QueryInt("limit", 50)
+	offset := c.QueryInt("offset", 0)
+
+	items, err := h.ai.ListForUser(c.Context(), userID, limit, offset)
+	if err != nil {
+		return err
+	}
+	return response.Success(c, items)
 }
