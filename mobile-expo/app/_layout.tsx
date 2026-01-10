@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { useAuthStore } from '../src/store/auth';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -37,18 +38,26 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
+  const loadStoredAuth = useAuthStore((s) => s.loadStoredAuth);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
+    // Hydrate auth state from SecureStore on cold start
+    loadStoredAuth();
+  }, [loadStoredAuth]);
+
+  useEffect(() => {
+    if (loaded && !authLoading) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, authLoading]);
 
-  if (!loaded) {
+  if (!loaded || authLoading) {
     return null;
   }
 

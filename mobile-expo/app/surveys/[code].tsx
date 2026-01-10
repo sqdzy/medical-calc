@@ -9,6 +9,8 @@ import {
   Switch,
   TextInput,
   Alert,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -35,13 +37,171 @@ function getMax(q: SurveyQuestion) {
   return typeof q.max === 'number' ? q.max : 10;
 }
 
+interface SelectOption {
+  value: number;
+  label: string;
+}
+
+interface SelectInputProps {
+  options: SelectOption[];
+  value: number;
+  onChange: (value: number) => void;
+}
+
+function SelectInput({ options, value, onChange }: SelectInputProps) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const selectedOption = options.find(o => o.value === value);
+
+  return (
+    <>
+      <TouchableOpacity 
+        style={selectStyles.trigger} 
+        onPress={() => setModalVisible(true)}
+      >
+        <Text style={selectStyles.triggerText}>
+          {selectedOption?.label || 'Выберите...'}
+        </Text>
+        <FontAwesome name="chevron-down" size={14} color="#6b7280" />
+      </TouchableOpacity>
+
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={selectStyles.overlay}>
+          <View style={selectStyles.modal}>
+            <View style={selectStyles.modalHeader}>
+              <Text style={selectStyles.modalTitle}>Выберите значение</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <FontAwesome name="times" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={options}
+              keyExtractor={(item) => String(item.value)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    selectStyles.option,
+                    item.value === value && selectStyles.optionSelected
+                  ]}
+                  onPress={() => {
+                    onChange(item.value);
+                    setModalVisible(false);
+                  }}
+                >
+                  <Text style={[
+                    selectStyles.optionText,
+                    item.value === value && selectStyles.optionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {item.value === value && (
+                    <FontAwesome name="check" size={16} color="#2563eb" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+const selectStyles = StyleSheet.create({
+  trigger: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 12,
+  },
+  triggerText: {
+    fontSize: 16,
+    color: '#374151',
+    flex: 1,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  option: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  optionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#374151',
+    flex: 1,
+  },
+  optionTextSelected: {
+    color: '#2563eb',
+    fontWeight: '500',
+  },
+});
+
+// Helper: check if template has text questions
+function hasTextQuestions(sections: SurveySection[]): boolean {
+  return flattenQuestions(sections).some((q) => q.type === 'text');
+}
+
+// Helper: build prompt from text answers
+function buildTextPrompt(
+  sections: SurveySection[],
+  answers: Record<string, number | boolean | string>
+): string {
+  const textQuestions = flattenQuestions(sections).filter((q) => q.type === 'text');
+  const parts: string[] = [];
+  for (const q of textQuestions) {
+    const val = answers[q.id];
+    if (typeof val === 'string' && val.trim()) {
+      parts.push(`${q.text}: ${val.trim()}`);
+    }
+  }
+  return parts.join('\n');
+}
+
 export default function SurveyFormScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const navigation = useNavigation();
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
 
-  const [answers, setAnswers] = useState<Record<string, number | boolean>>({});
+  const [answers, setAnswers] = useState<Record<string, number | boolean | string>>({});
   const [result, setResult] = useState<SurveyResult | null>(null);
   const [aiRequestText, setAiRequestText] = useState('');
   const [aiAdvice, setAiAdvice] = useState<AIAdviceResult | null>(null);
@@ -56,11 +216,17 @@ export default function SurveyFormScreen() {
     if (template) {
       navigation.setOptions({ title: template.name });
       // Initialize answers with default values
-      const initialAnswers: Record<string, number | boolean> = {};
+      const initialAnswers: Record<string, number | boolean | string> = {};
       const questions = flattenQuestions(template.questions);
       questions.forEach((q) => {
         if (q.type === 'boolean') {
           initialAnswers[q.id] = false;
+        } else if (q.type === 'text') {
+          initialAnswers[q.id] = '';
+        } else if (q.type === 'select' && q.options && q.options.length > 0) {
+          // For select, initialize with first option value
+          const firstOption = q.options[0];
+          initialAnswers[q.id] = typeof firstOption === 'object' ? firstOption.value : 0;
         } else {
           initialAnswers[q.id] = getMin(q);
         }
@@ -72,11 +238,17 @@ export default function SurveyFormScreen() {
   const submitMutation = useMutation({
     mutationFn: (surveyAnswers: SurveyAnswer[]) => 
       surveysApi.submitResponse(code || '', surveyAnswers),
-    onSuccess: (result) => {
+    onSuccess: (result, surveyAnswers) => {
       setResult(result);
       setAiAdvice(null);
       // Scroll to top to show result
       setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
+
+      // Auto-trigger AI advice if template has text questions
+      if (template && hasTextQuestions(template.questions)) {
+        const autoPrompt = buildTextPrompt(template.questions, answers);
+        adviceMutation.mutate({ surveyAnswers, text: autoPrompt });
+      }
     },
     onError: (err: any) => {
       Alert.alert('Ошибка', err.response?.data?.message || 'Не удалось сохранить');
@@ -100,7 +272,9 @@ export default function SurveyFormScreen() {
     const questions = flattenQuestions(template.questions);
     const surveyAnswers: SurveyAnswer[] = questions.map((q) => ({
       question_id: q.id,
-      value: answers[q.id] ?? (q.type === 'boolean' ? false : 0),
+      value:
+        answers[q.id] ??
+        (q.type === 'boolean' ? false : q.type === 'text' ? '' : 0),
     }));
 
     submitMutation.mutate(surveyAnswers);
@@ -112,13 +286,15 @@ export default function SurveyFormScreen() {
     const questions = flattenQuestions(template.questions);
     const surveyAnswers: SurveyAnswer[] = questions.map((q) => ({
       question_id: q.id,
-      value: answers[q.id] ?? (q.type === 'boolean' ? false : 0),
+      value:
+        answers[q.id] ??
+        (q.type === 'boolean' ? false : q.type === 'text' ? '' : 0),
     }));
 
     adviceMutation.mutate({ surveyAnswers, text: aiRequestText });
   };
 
-  const setAnswer = (questionId: string, value: number | boolean) => {
+  const setAnswer = (questionId: string, value: number | boolean | string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
@@ -157,42 +333,62 @@ export default function SurveyFormScreen() {
           <Text style={styles.resultInterpretation}>{result.interpretation}</Text>
 
           <Text style={styles.aiTitle}>AI рекомендации</Text>
-          <Text style={styles.aiHint}>
-            Можно добавить комментарий (необязательно) и получить пояснение результатов.
-          </Text>
-          <TextInput
-            style={styles.aiInput}
-            placeholder="Опишите самочувствие/жалобы (необязательно)"
-            placeholderTextColor="#9ca3af"
-            value={aiRequestText}
-            onChangeText={setAiRequestText}
-            multiline
-          />
 
-          <TouchableOpacity
-            style={[styles.aiButton, adviceMutation.isPending && styles.submitButtonDisabled]}
-            onPress={handleGetAdvice}
-            disabled={adviceMutation.isPending}
-          >
-            {adviceMutation.isPending ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <FontAwesome name="comment" size={18} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.submitButtonText}>Получить рекомендацию</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {/* If template has text questions, AI is auto-triggered; otherwise show manual input */}
+          {hasTextQuestions(template.questions) ? (
+            adviceMutation.isPending ? (
+              <View style={styles.aiLoadingBlock}>
+                <ActivityIndicator size="small" color="#2563eb" />
+                <Text style={styles.aiLoadingText}>Анализируем данные...</Text>
+              </View>
+            ) : aiAdvice ? (
+              <View style={styles.aiAnswerBlock}>
+                <Text style={styles.aiAnswerText}>{aiAdvice.advice_text}</Text>
+                <Text style={styles.aiDisclaimer}>{aiAdvice.disclaimer}</Text>
+                <TouchableOpacity style={styles.aiHistoryBtn} onPress={() => router.push('/(tabs)/advice' as any)}>
+                  <Text style={styles.aiHistoryBtnText}>Открыть историю рекомендаций</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null
+          ) : (
+            <>
+              <Text style={styles.aiHint}>
+                Можно добавить комментарий (необязательно) и получить пояснение результатов.
+              </Text>
+              <TextInput
+                style={styles.aiInput}
+                placeholder="Опишите самочувствие/жалобы (необязательно)"
+                placeholderTextColor="#9ca3af"
+                value={aiRequestText}
+                onChangeText={setAiRequestText}
+                multiline
+              />
 
-          {aiAdvice && (
-            <View style={styles.aiAnswerBlock}>
-              <Text style={styles.aiAnswerText}>{aiAdvice.advice_text}</Text>
-              <Text style={styles.aiDisclaimer}>{aiAdvice.disclaimer}</Text>
-
-              <TouchableOpacity style={styles.aiHistoryBtn} onPress={() => router.push('/(tabs)/advice' as any)}>
-                <Text style={styles.aiHistoryBtnText}>Открыть историю рекомендаций</Text>
+              <TouchableOpacity
+                style={[styles.aiButton, adviceMutation.isPending && styles.submitButtonDisabled]}
+                onPress={handleGetAdvice}
+                disabled={adviceMutation.isPending}
+              >
+                {adviceMutation.isPending ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <FontAwesome name="comment" size={18} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.submitButtonText}>Получить рекомендацию</Text>
+                  </>
+                )}
               </TouchableOpacity>
-            </View>
+
+              {aiAdvice && (
+                <View style={styles.aiAnswerBlock}>
+                  <Text style={styles.aiAnswerText}>{aiAdvice.advice_text}</Text>
+                  <Text style={styles.aiDisclaimer}>{aiAdvice.disclaimer}</Text>
+                  <TouchableOpacity style={styles.aiHistoryBtn} onPress={() => router.push('/(tabs)/advice' as any)}>
+                    <Text style={styles.aiHistoryBtnText}>Открыть историю рекомендаций</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
           )}
 
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
@@ -275,6 +471,28 @@ export default function SurveyFormScreen() {
                         }}
                       />
                     </View>
+                  )}
+
+                  {question.type === 'text' && (
+                    <View style={styles.textAnswer}>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder={question.placeholder || ''}
+                        placeholderTextColor="#9ca3af"
+                        value={typeof answers[question.id] === 'string' ? (answers[question.id] as string) : ''}
+                        onChangeText={(txt) => setAnswer(question.id, txt)}
+                        multiline
+                        textAlignVertical="top"
+                      />
+                    </View>
+                  )}
+
+                  {question.type === 'select' && question.options && (
+                    <SelectInput
+                      options={question.options}
+                      value={answers[question.id] as number}
+                      onChange={(val) => setAnswer(question.id, val)}
+                    />
                   )}
                 </View>
               );
@@ -487,6 +705,20 @@ const styles = StyleSheet.create({
     color: '#111827',
     backgroundColor: '#fff',
   },
+  textAnswer: {
+    marginTop: 4,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: '#111827',
+    backgroundColor: '#fff',
+    minHeight: 96,
+  },
   questionText: {
     fontSize: 16,
     color: '#1f2937',
@@ -547,5 +779,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  aiLoadingBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 10,
+  },
+  aiLoadingText: {
+    fontSize: 15,
+    color: '#6b7280',
   },
 });

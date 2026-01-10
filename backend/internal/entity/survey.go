@@ -2,10 +2,48 @@ package entity
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// SurveyOption represents a selectable option for a question.
+// New templates use objects with {value,label}. Older templates may still store options as strings.
+type SurveyOption struct {
+	Value float64 `json:"value"`
+	Label string  `json:"label"`
+}
+
+// SurveyOptions supports unmarshalling both legacy string arrays and modern option objects.
+type SurveyOptions []SurveyOption
+
+func (o *SurveyOptions) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		*o = nil
+		return nil
+	}
+
+	// Preferred format: [{"value": 1, "label": "..."}, ...]
+	var asObjects []SurveyOption
+	if err := json.Unmarshal(data, &asObjects); err == nil {
+		*o = asObjects
+		return nil
+	}
+
+	// Legacy format: ["Option A", "Option B", ...]
+	var asStrings []string
+	if err := json.Unmarshal(data, &asStrings); err == nil {
+		converted := make([]SurveyOption, 0, len(asStrings))
+		for i, s := range asStrings {
+			converted = append(converted, SurveyOption{Value: float64(i), Label: s})
+		}
+		*o = converted
+		return nil
+	}
+
+	return fmt.Errorf("invalid survey options format: %s", string(data))
+}
 
 // SurveyTemplate represents a survey/questionnaire template
 type SurveyTemplate struct {
@@ -32,7 +70,7 @@ type SurveyQuestion struct {
 	Score    float64                `json:"score,omitempty"`
 	Min      float64                `json:"min,omitempty"`
 	Max      float64                `json:"max,omitempty"`
-	Options  []string               `json:"options,omitempty"`
+	Options  SurveyOptions          `json:"options,omitempty"`
 	Labels   map[string]string      `json:"labels,omitempty"`
 	Required bool                   `json:"required,omitempty"`
 	Extra    map[string]interface{} `json:"extra,omitempty"`

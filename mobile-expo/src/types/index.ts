@@ -22,7 +22,7 @@ export interface LoginResponse {
 
 // Survey types
 export interface QuestionOption {
-  value: string;
+  value: number;
   label: string;
 }
 
@@ -30,11 +30,11 @@ export interface SurveyQuestion {
   id: string;
   text: string;
   type: 'boolean' | 'number' | 'scale' | 'select' | 'text' | 'vas' | 'vas100';
+  placeholder?: string;
   score?: number;
   min?: number;
   max?: number;
-  // Backend currently stores options as string[]; keep it flexible.
-  options?: string[] | QuestionOption[];
+  options?: QuestionOption[];
   labels?: Record<string, string>;
   required?: boolean;
   extra?: Record<string, unknown>;
@@ -57,7 +57,7 @@ export interface SurveyTemplate {
 
 export interface SurveyAnswer {
   question_id: string;
-  value: number | boolean;
+  value: number | boolean | string;
 }
 
 export interface SurveyResult {

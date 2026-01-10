@@ -36,22 +36,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="two"
         options={{
-          title: 'Опросники',
+          title: 'Шкалы',
           tabBarIcon: ({ color }) => <TabBarIcon name="list-alt" color={color} />,
         }}
       />
       <Tabs.Screen
         name="therapy"
         options={{
-          title: 'Терапия',
-          tabBarIcon: ({ color }) => <TabBarIcon name="medkit" color={color} />,
+          href: null, // Hide therapy tab - not used for preoperative risk assessment
         }}
       />
       <Tabs.Screen
         name="advice"
         options={{
-          title: 'AI',
-          tabBarIcon: ({ color }) => <TabBarIcon name="comment" color={color} />,
+          title: 'Рекомендации',
+          tabBarIcon: ({ color }) => <TabBarIcon name="lightbulb-o" color={color} />,
         }}
       />
     </Tabs>

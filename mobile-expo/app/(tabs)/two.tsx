@@ -26,7 +26,7 @@ export default function SurveysScreen() {
     return (
       <View style={styles.center}>
         <FontAwesome name="exclamation-triangle" size={48} color="#dc2626" />
-        <Text style={styles.error}>Ошибка загрузки опросников</Text>
+        <Text style={styles.error}>Ошибка загрузки шкал</Text>
       </View>
     );
   }
@@ -39,9 +39,9 @@ export default function SurveysScreen() {
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Медицинские опросники</Text>
+          <Text style={styles.headerTitle}>Шкалы оценки риска</Text>
           <Text style={styles.headerSubtitle}>
-            Выберите опросник для прохождения
+            Выберите шкалу для оценки периоперационного риска
           </Text>
         </View>
       }
@@ -50,8 +50,8 @@ export default function SurveysScreen() {
           style={styles.card}
           onPress={() => router.push(`/surveys/${item.code}`)}
         >
-          <View style={styles.cardIcon}>
-            <FontAwesome name="clipboard" size={24} color="#2563eb" />
+          <View style={[styles.cardIcon, { backgroundColor: getScaleBackground(item.code) }]}>
+            <FontAwesome name={getScaleIcon(item.code)} size={24} color={getScaleColor(item.code)} />
           </View>
           <View style={styles.cardContent}>
             <Text style={styles.cardTitle}>{item.name}</Text>
@@ -66,11 +66,41 @@ export default function SurveysScreen() {
       ListEmptyComponent={
         <View style={styles.center}>
           <FontAwesome name="folder-open-o" size={48} color="#9ca3af" />
-          <Text style={styles.emptyText}>Нет доступных опросников</Text>
+          <Text style={styles.emptyText}>Нет доступных шкал</Text>
         </View>
       }
     />
   );
+}
+
+function getScaleIcon(code: string): React.ComponentProps<typeof FontAwesome>['name'] {
+  switch (code) {
+    case 'ASA': return 'user-md';
+    case 'RCRI': return 'heartbeat';
+    case 'GOLDMAN': return 'heart';
+    case 'CAPRINI': return 'tint';
+    default: return 'clipboard';
+  }
+}
+
+function getScaleColor(code: string): string {
+  switch (code) {
+    case 'ASA': return '#2563eb';
+    case 'RCRI': return '#dc2626';
+    case 'GOLDMAN': return '#ea580c';
+    case 'CAPRINI': return '#7c3aed';
+    default: return '#2563eb';
+  }
+}
+
+function getScaleBackground(code: string): string {
+  switch (code) {
+    case 'ASA': return '#eff6ff';
+    case 'RCRI': return '#fef2f2';
+    case 'GOLDMAN': return '#fff7ed';
+    case 'CAPRINI': return '#f5f3ff';
+    default: return '#f0f9ff';
+  }
 }
 
 const styles = StyleSheet.create({

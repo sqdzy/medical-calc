@@ -2,13 +2,14 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { surveysApi, therapyApi } from '../../src/api/client';
+import { surveysApi } from '../../src/api/client';
 import { useAuthStore } from '../../src/store/auth';
 
 export default function HomeScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
 
   const { data: templates, isLoading: loadingTemplates } = useQuery({
     queryKey: ['survey-templates'],
@@ -16,24 +17,22 @@ export default function HomeScreen() {
     enabled: isAuthenticated,
   });
 
-  const { data: therapyLogs, isLoading: loadingTherapy } = useQuery({
-    queryKey: ['therapy-logs', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const res = await therapyApi.listByPatient(user.id);
-      return res.data.data;
-    },
-    enabled: isAuthenticated && !!user?.id,
-  });
+  if (authLoading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
       <View style={styles.container}>
         <View style={styles.welcomeCard}>
-          <FontAwesome name="heartbeat" size={64} color="#2563eb" />
-          <Text style={styles.welcomeTitle}>Медицинский калькулятор</Text>
+          <FontAwesome name="stethoscope" size={64} color="#2563eb" />
+          <Text style={styles.welcomeTitle}>Предоперационная оценка</Text>
           <Text style={styles.welcomeSubtitle}>
-            Система поддержки терапии ГИБП
+            Шкалы оценки риска периоперационных осложнений
           </Text>
           <TouchableOpacity
             style={styles.authButton}
@@ -56,7 +55,7 @@ export default function HomeScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.greeting}>
-          Здравствуйте, {user?.first_name || 'Пациент'}!
+          Здравствуйте, {user?.first_name || 'Пользователь'}!
         </Text>
         <Text style={styles.date}>
           {new Date().toLocaleDateString('ru-RU', {
@@ -67,42 +66,41 @@ export default function HomeScreen() {
         </Text>
       </View>
 
-      {/* Quick Actions */}
+      {/* Info Card */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Быстрые действия</Text>
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push('/(tabs)/two')}
-          >
-            <FontAwesome name="list-alt" size={32} color="#2563eb" />
-            <Text style={styles.actionText}>Опросники</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => router.push('/(tabs)/therapy')}
-          >
-            <FontAwesome name="medkit" size={32} color="#16a34a" />
-            <Text style={styles.actionText}>Терапия</Text>
-          </TouchableOpacity>
+        <View style={styles.infoCard}>
+          <FontAwesome name="info-circle" size={24} color="#2563eb" />
+          <Text style={styles.infoText}>
+            Выберите шкалу для оценки периоперационного риска. 
+            Результат поможет в планировании предоперационной подготовки.
+          </Text>
         </View>
       </View>
 
-      {/* Recent Surveys */}
+      {/* Available Scales */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Доступные опросники</Text>
+        <Text style={styles.sectionTitle}>Шкалы оценки риска</Text>
         {loadingTemplates ? (
           <ActivityIndicator size="small" color="#2563eb" />
         ) : templates?.length ? (
-          templates.slice(0, 3).map((t: any) => (
+          templates.map((t: any) => (
             <TouchableOpacity
               key={t.id}
               style={styles.listItem}
               onPress={() => router.push(`/surveys/${t.code}`)}
             >
-              <View>
-                <Text style={styles.listItemTitle}>{t.name}</Text>
-                <Text style={styles.listItemSubtitle}>{t.category}</Text>
+              <View style={styles.listItemContent}>
+                <View style={styles.iconContainer}>
+                  <FontAwesome 
+                    name={getScaleIcon(t.code)} 
+                    size={24} 
+                    color={getScaleColor(t.code)} 
+                  />
+                </View>
+                <View style={styles.listItemText}>
+                  <Text style={styles.listItemTitle}>{t.name}</Text>
+                  <Text style={styles.listItemSubtitle}>{getScaleDescription(t.code)}</Text>
+                </View>
               </View>
               <FontAwesome name="chevron-right" size={16} color="#9ca3af" />
             </TouchableOpacity>
@@ -111,32 +109,38 @@ export default function HomeScreen() {
           <Text style={styles.emptyText}>Нет доступных опросников</Text>
         )}
       </View>
-
-      {/* Recent Therapy */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Последняя терапия</Text>
-        {loadingTherapy ? (
-          <ActivityIndicator size="small" color="#2563eb" />
-        ) : therapyLogs?.length ? (
-          therapyLogs.slice(0, 3).map((log: any) => (
-            <View key={log.id} style={styles.listItem}>
-              <View>
-                <Text style={styles.listItemTitle}>{log.drug_name}</Text>
-                <Text style={styles.listItemSubtitle}>
-                  {log.dosage} {log.dosage_unit}
-                </Text>
-              </View>
-              <Text style={styles.dateText}>
-                {new Date(log.administered_at).toLocaleDateString('ru-RU')}
-              </Text>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.emptyText}>Записей о терапии пока нет</Text>
-        )}
-      </View>
     </ScrollView>
   );
+}
+
+function getScaleIcon(code: string): React.ComponentProps<typeof FontAwesome>['name'] {
+  switch (code) {
+    case 'ASA': return 'user-md';
+    case 'RCRI': return 'heartbeat';
+    case 'GOLDMAN': return 'heart';
+    case 'CAPRINI': return 'tint';
+    default: return 'list-alt';
+  }
+}
+
+function getScaleColor(code: string): string {
+  switch (code) {
+    case 'ASA': return '#2563eb';
+    case 'RCRI': return '#dc2626';
+    case 'GOLDMAN': return '#ea580c';
+    case 'CAPRINI': return '#7c3aed';
+    default: return '#6b7280';
+  }
+}
+
+function getScaleDescription(code: string): string {
+  switch (code) {
+    case 'ASA': return 'Общая оценка физического статуса';
+    case 'RCRI': return 'Кардиальный риск (индекс Ли)';
+    case 'GOLDMAN': return 'Оригинальный кардиальный индекс';
+    case 'CAPRINI': return 'Риск венозных тромбоэмболий';
+    default: return '';
+  }
 }
 
 const styles = StyleSheet.create({
@@ -212,27 +216,19 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginBottom: 12,
   },
-  actionsRow: {
+  infoCard: {
+    backgroundColor: '#eff6ff',
+    padding: 16,
+    borderRadius: 12,
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 12,
   },
-  actionCard: {
+  infoText: {
     flex: 1,
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  actionText: {
-    marginTop: 8,
     fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+    color: '#1e40af',
+    lineHeight: 20,
   },
   listItem: {
     backgroundColor: '#fff',
@@ -243,6 +239,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  listItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  listItemText: {
+    flex: 1,
+  },
   listItemTitle: {
     fontSize: 16,
     fontWeight: '500',
@@ -252,10 +265,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     marginTop: 2,
-  },
-  dateText: {
-    fontSize: 12,
-    color: '#9ca3af',
   },
   emptyText: {
     textAlign: 'center',
